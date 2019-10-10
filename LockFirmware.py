@@ -6,6 +6,7 @@ try:
     import RPi.GPIO as GPIO
     import MFRC522
     import signal
+    import mywebserver
 except ImportError as ie:
     print("Problema ao importar módulo {0}").format(ie)
     sys.exit()
