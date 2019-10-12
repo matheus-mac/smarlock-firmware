@@ -6,7 +6,7 @@ try:
     import RPi.GPIO as GPIO
     import MFRC522
     import signal
-    import mywebserver
+    #import mywebserver
 except ImportError as ie:
     print("Problema ao importar módulo {0}").format(ie)
     sys.exit()
@@ -23,6 +23,7 @@ def end_read(signal,frame):
     GPIO.cleanup()
 
 while (True):
+    
     # Hook the SIGINT
     signal.signal(signal.SIGINT, end_read)
 
@@ -50,7 +51,7 @@ while (True):
                 reading_RFID= False
             else:
                 print("Não reconhecido")
-    
+       #if invasao: testar porta  
     
     
     #xml_path = 'haarcascade_frontalface_alt2.xml'
