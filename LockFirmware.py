@@ -7,13 +7,13 @@ try:
     import MFRC522
     import signal
     #import mywebserver
+    import VerificaInvasao
+    import requisicoesHTTP
+    import time
 except ImportError as ie:
     print("Problema ao importar módulo {0}").format(ie)
     sys.exit()
-    
-#Constants
-acessos_autorizados = [[221,36,133,137,245]]
-reading_RFID = True
+
 
 # Capture SIGINT for cleanup when the script is aborted
 def end_read(signal,frame):
@@ -23,6 +23,17 @@ def end_read(signal,frame):
     GPIO.cleanup()
 
 while (True):
+        
+    #Constants
+    reading_RFID = True
+    invasaoVerificada = False
+    numeroSerial = 1
+    usuarioId = 0
+    fotoLink = ""
+    usuarioVinculado = False
+    scanForFaces = False
+    BLUE_COLOR = (255, 0, 0)
+    STROKE = 2
     
     # Hook the SIGINT
     signal.signal(signal.SIGINT, end_read)
@@ -35,7 +46,7 @@ while (True):
     #print ("Press Ctrl-C to stop.")
 
     # This loop keeps checking for chips. If one is near it will get the UID and authenticate
-    while reading_RFID:
+    while reading_RFID and not invasaoVerificada:
         # Scan for cards    
         MIFAREReader.MFRC522_Request(MIFAREReader.PICC_REQIDL)
 
@@ -45,26 +56,41 @@ while (True):
         if status == MIFAREReader.MI_OK:
             # Print UID
             print ("Card read UID: %s,%s,%s,%s,%s" % (uid[0], uid[1], uid[2], uid[3],uid[4]))
+            cardUUID = ",".join(map(str,uid))
             #This condition will be replaced by an API
-            if uid in acessos_autorizados:
+            usuarioId, fotoLink, usuarioVinculado = requisicoesHTTP.verificaVinculoUsuario(numeroSerial, cardUUID)
+            if usuarioVinculado:
                 print("Acesso liberado!")
+                scanForFaces = True
                 reading_RFID= False
             else:
                 print("Não reconhecido")
-       #if invasao: testar porta  
+        elif not VerificaInvasao.verificaArrombamento():
+            #Invasao verificada
+            print("Enter here")
+            invasaoVerificada=True
     
+    if (invasaoVerificada == True):
+        #Gravar video de 30 segundos, subir pra nuvem e registrar no banco
+        invasaoVerificada = False
     
-    #xml_path = 'haarcascade_frontalface_alt2.xml'
+    xml_path = 'haarcascade_frontalface_alt2.xml'
     cap = cv2.VideoCapture(0)
     clf = cv2.CascadeClassifier(xml_path)
     
-    while(True):
+    start_time = time.time()
+    while(scanForFaces):
         #capture frame-by-frame
+        elapsedTime = time.time()-start_time
+        if (elapsedTime >= 30):
+            requisicoesHTTP.registraFalhaAutenticacao(numeroSerial, usuarioId)
+            scanForFaces = False
+            
         ret, frame = cap.read()#read image and return true or false
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)#image operation
-        #faces = clf.detectMultiScale(gray)
-        #for x,y,w,h in faces:
-        #    cv2.rectangle(frame, (x,y), (x+w, y+h), BLUE_COLOR, STROKE)
+        faces = clf.detectMultiScale(gray)
+        for x,y,w,h in faces:
+            cv2.rectangle(frame, (x,y), (x+w, y+h), BLUE_COLOR, STROKE)
         cv2.imshow('frame',frame)#functio to display an image
                                 #(window name, image)
         if cv2.waitKey(1) & 0xFF == ord('q'):
