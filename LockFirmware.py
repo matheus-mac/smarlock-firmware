@@ -10,10 +10,12 @@ try:
     import VerificaInvasao
     import requisicoesHTTP
     import time
+    import opencvFunctions
+    import os.path
+    import AWSFunctions
 except ImportError as ie:
     print("Problema ao importar módulo {0}").format(ie)
     sys.exit()
-
 
 # Capture SIGINT for cleanup when the script is aborted
 def end_read(signal,frame):
@@ -57,7 +59,6 @@ while (True):
             # Print UID
             print ("Card read UID: %s,%s,%s,%s,%s" % (uid[0], uid[1], uid[2], uid[3],uid[4]))
             cardUUID = ",".join(map(str,uid))
-            #This condition will be replaced by an API
             usuarioId, fotoLink, usuarioVinculado = requisicoesHTTP.verificaVinculoUsuario(numeroSerial, cardUUID)
             if usuarioVinculado:
                 print("Acesso liberado!")
@@ -71,12 +72,20 @@ while (True):
             invasaoVerificada=True
     
     if (invasaoVerificada == True):
-        #Gravar video de 30 segundos, subir pra nuvem e registrar no banco
+        invasaoId = requisicoesHTTP.registraInvasao(numeroSerial)
+        videoLink = opencvFunctions.gravaInvasao(invasaoId)
+        requisicoesHTTP.editaLinkInvasao(invasaoId, videoLink)
+        scanForFaces = False;
         invasaoVerificada = False
     
     xml_path = 'haarcascade_frontalface_alt2.xml'
     cap = cv2.VideoCapture(0)
     clf = cv2.CascadeClassifier(xml_path)
+    
+    #verifica se o arquivo de imagem do usuário está baixado
+    fileName = str(usuarioId) + ".jpg"
+    if (not os.path.isfile(fileName)):
+        AWSFunctions.download_file(fileName)    
     
     start_time = time.time()
     while(scanForFaces):
@@ -91,12 +100,11 @@ while (True):
         faces = clf.detectMultiScale(gray)
         for x,y,w,h in faces:
             cv2.rectangle(frame, (x,y), (x+w, y+h), BLUE_COLOR, STROKE)
-        cv2.imshow('frame',frame)#functio to display an image
-                                #(window name, image)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-                                #waitKey keyboard binding function (time ms)
-                                #& 0xFF read condition on 64bit machine
-                                #ord('q') conversion of unicode to q
+        cv2.imshow('frame',frame)
+        
+        #if reconhecimento tiver sucesso
+        #requisicoesHTTP.registraAcesso(numeroSerial,usuarioId)
+        #Envia comando para GPIO abrir portão
+        
     cap.release()               #release the capture
     cv2.destroyAllWindows()     #destroy all windows created
